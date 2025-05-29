@@ -24,33 +24,33 @@ def get_stock_data(symbol, start_date, end_date):
     try:
         # First, try to get data from the database
         db_data = get_stock_prices(symbol, start_date, end_date)
-        
+
         # If we have complete data in the database, use it
         if db_data is not None and not db_data.empty and len(db_data) >= (end_date - start_date).days * 0.7:
             print(f"Using cached data for {symbol} from database")
             return db_data
-        
+
         # Otherwise, fetch from Yahoo Finance
         print(f"Fetching fresh data for {symbol} from Yahoo Finance")
         stock = yf.Ticker(symbol)
         df = stock.history(start=start_date, end=end_date)
-        
+
         # Check if data is empty
         if df.empty:
             raise ValueError(f"No data found for {symbol}")
-        
+
         # Reset index to make Date a column
         df = df.reset_index()
-        
+
         # Convert date to datetime if it's not already
         df['Date'] = pd.to_datetime(df['Date'])
-        
+
         # Set date as index again
         df = df.set_index('Date')
-        
+
         # Get company info and store in database
         info = stock.info
-        
+
         # Save the stock to the database
         get_or_create_stock(
             symbol=symbol,
@@ -60,16 +60,14 @@ def get_stock_data(symbol, start_date, end_date):
             description=info.get('longBusinessSummary'),
             market_cap=info.get('marketCap', 0)
         )
-        
+
         # Save the price data to the database
         save_stock_prices(symbol, df)
-        
+
         return df
-    
+
     except Exception as e:
-        # If there's an error, return a simple dataframe with the error
         print(f"Error fetching data for {symbol}: {e}")
-        # Create a sample dataframe with the current date
         current_date = datetime.datetime.now()
         dates = [current_date - datetime.timedelta(days=i) for i in range(30)]
         df = pd.DataFrame({
@@ -94,11 +92,9 @@ def get_company_info(symbol):
         dict: Dictionary with company information
     """
     try:
-        # Get company info from Yahoo Finance
         stock = yf.Ticker(symbol)
         info = stock.info
-        
-        # Extract relevant information
+
         company_info = {
             'name': info.get('shortName', 'Unknown'),
             'sector': info.get('sector', 'Unknown'),
@@ -110,8 +106,7 @@ def get_company_info(symbol):
             'revenue': info.get('totalRevenue', 0),
             'eps': info.get('trailingEps', 0)
         }
-        
-        # Save stock info to database
+
         get_or_create_stock(
             symbol=symbol,
             name=company_info['name'],
@@ -120,12 +115,11 @@ def get_company_info(symbol):
             description=company_info['description'],
             market_cap=company_info['market_cap']
         )
-        
+
         return company_info
-    
+
     except Exception as e:
         print(f"Error fetching company info for {symbol}: {e}")
-        # Return default values if there's an error
         return {
             'name': symbol,
             'sector': 'Unknown',
@@ -140,12 +134,13 @@ def get_company_info(symbol):
 
 def get_popular_stocks():
     """
-    Return a list of popular stocks
+    Return a list of popular stocks, including US and Indian companies
     
     Returns:
         list: List of dictionaries with stock symbols and names
     """
     popular_stocks = [
+        # US stocks
         {'symbol': 'AAPL', 'name': 'Apple Inc.'},
         {'symbol': 'MSFT', 'name': 'Microsoft Corp.'},
         {'symbol': 'GOOGL', 'name': 'Alphabet Inc.'},
@@ -153,23 +148,32 @@ def get_popular_stocks():
         {'symbol': 'TSLA', 'name': 'Tesla Inc.'},
         {'symbol': 'META', 'name': 'Meta Platforms Inc.'},
         {'symbol': 'NVDA', 'name': 'NVIDIA Corp.'},
-        {'symbol': 'JPM', 'name': 'JPMorgan Chase & Co.'}
+        {'symbol': 'JPM', 'name': 'JPMorgan Chase & Co.'},
+        # Indian stocks
+        {'symbol': 'RELIANCE.NS', 'name': 'Reliance Industries'},
+        {'symbol': 'TCS.NS', 'name': 'Tata Consultancy Services'},
+        {'symbol': 'INFY.NS', 'name': 'Infosys'},
+        {'symbol': 'HDFCBANK.NS', 'name': 'HDFC Bank'},
+        {'symbol': 'ICICIBANK.NS', 'name': 'ICICI Bank'},
+        {'symbol': 'ITC.NS', 'name': 'ITC Ltd'},
+        {'symbol': 'SBIN.NS', 'name': 'State Bank of India'},
+        {'symbol': 'LT.NS', 'name': 'Larsen & Toubro'}
     ]
-    
+
     return popular_stocks
 
 def search_stocks(query):
     """
-    Search for stocks by symbol or name
-    
+    Search for stocks by symbol or name (US and Indian)
+
     Args:
         query (str): Search query
         
     Returns:
         list: List of matching stocks
     """
-    # Dictionary of stock symbols and names
     all_stocks = {
+        # US stocks
         'AAPL': 'Apple Inc.',
         'MSFT': 'Microsoft Corporation',
         'GOOGL': 'Alphabet Inc.',
@@ -199,18 +203,27 @@ def search_stocks(query):
         'CRM': 'Salesforce Inc.',
         'CMCSA': 'Comcast Corporation',
         'KO': 'Coca-Cola Co.',
-        'PEP': 'PepsiCo Inc.'
+        'PEP': 'PepsiCo Inc.',
+        # Indian stocks
+        'RELIANCE.NS': 'Reliance Industries',
+        'TCS.NS': 'Tata Consultancy Services',
+        'INFY.NS': 'Infosys Limited',
+        'HDFCBANK.NS': 'HDFC Bank',
+        'ICICIBANK.NS': 'ICICI Bank',
+        'ITC.NS': 'ITC Ltd',
+        'SBIN.NS': 'State Bank of India',
+        'LT.NS': 'Larsen & Toubro'
     }
-    
-    # Filter stocks based on query
+
     query = query.upper()
     results = []
-    
+
     for symbol, name in all_stocks.items():
         if query in symbol.upper() or query in name.upper():
             results.append({
                 'symbol': symbol,
                 'name': name
             })
-    
-    return results[:10]  # Limit to top 10 results
+
+    return results[:10]
+
